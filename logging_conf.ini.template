@@ -1,0 +1,37 @@
+[loggers]
+level=DEBUG
+keys=root,qualia
+
+[handlers]
+keys=consolehandler,filehandler
+
+[formatters]
+keys=fileformatter,consoleformatter
+
+[logger_root]
+level=DEBUG
+handlers=consolehandler
+
+[logger_qualia]
+level=DEBUG
+handlers=consolehandler,filehandler
+qualname=qualia
+propagate=0
+
+[handler_consolehandler]
+class=StreamHandler
+level=DEBUG
+formatter=consoleformatter
+args=(sys.stderr,)
+
+[handler_filehandler]
+class=FileHandler
+level=DEBUG
+formatter=fileformatter
+args=('logs.log',)
+
+[formatter_consoleformatter]
+format=%(asctime)s [%(levelname)-8s] %(name)s:%(lineno)s %(message)s
+
+[formatter_fileformatter]
+format=%(asctime)s [%(levelname)-8s] %(name)s:%(lineno)s %(message)s
