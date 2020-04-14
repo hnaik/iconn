@@ -19,7 +19,7 @@ ic_utils.init_logging()
 logger = logging.getLogger('predict')
 
 
-def main():
+def run_prediction():
     model = ic_models.create_model(args.arch)
     model.eval()
 
@@ -60,6 +60,10 @@ def main():
         labels = [v[1] for k, v in d.items()]
 
     logger.info(f'The given file {args.input_file} is of a {labels[idx]}')
+
+
+def main():
+    run_prediction()
 
 
 if __name__ == '__main__':
