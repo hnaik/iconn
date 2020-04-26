@@ -4,3 +4,4 @@
 logging_conf.ini
 logs.log
 .idea
+*.pth.tar
