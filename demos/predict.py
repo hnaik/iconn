@@ -1,5 +1,23 @@
 #!/usr/bin/env python3
 
+"""
+iconn: Interpretable Convolutional Neural Networks
+Copyright (C) 2020 Harish Naik <harishgnaik@gmail.com>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 import json
 import logging
 import sys
@@ -74,7 +92,7 @@ if __name__ == '__main__':
         '--labels-file', type=Path, default='imagenet_class_index.json'
     )
     parser.add_argument(
-        '--arch', choices=ic_models.model_names, default='alexnet'
+        '--arch', choices=ic_models.vanilla_model_names, default='alexnet'
     )
 
     args = parser.parse_args()

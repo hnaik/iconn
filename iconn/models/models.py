@@ -1,12 +1,12 @@
 import logging
 import torch
 
+from .alexnet import AlexNet, InterpretableAlexNet
+
 logger = logging.getLogger(__name__)
 
-model_names = [
-    # AlexNet
+vanilla_model_names = {
     'alexnet',
-    # VGG
     'vgg11',
     'vgg11_bn',
     'vgg13',
@@ -15,7 +15,6 @@ model_names = [
     'vgg16_bn',
     'vgg19',
     'vgg19_bn',
-    # ResNet
     'resnet18',
     'resnet34',
     'resnet50',
@@ -25,16 +24,24 @@ model_names = [
     'resnext101_32x8d',
     'wide_resnet50_2',
     'wide_resnet101_2',
-    # GoogLeNet
     'googlenet',
-    # # Inception V3 Google
-    # 'inception_v3_google',
-]
+}
+supported_models = {'alexnet'}
 
 
 def create_model(model_name, pretrained=True):
-    """Convenience function to create model"""
+    """Convenience function to create model - from torch hub"""
 
     return torch.hub.load(
         'pytorch/vision:v0.5.0', model_name, pretrained=pretrained
     )
+
+
+def make_model(model_name, *args, **kwargs):
+    """Factory funtion to create project supported models"""
+    if model_name == 'alexnet':
+        return AlexNet(*args, **kwargs)
+    elif model_name == 'i-alexnet':
+        return InterpretableAlexNet(*args, **kwargs)
+
+    raise RuntimeError(f'Model {model_name} not supported')
