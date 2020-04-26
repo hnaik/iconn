@@ -13,9 +13,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
+along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
+import torch
 import torch.nn as nn
 
 
@@ -23,7 +24,7 @@ class AlexNet(nn.Module):
     """Implementation of AlexNet"""
 
     def __init__(self, num_classes=1000):
-        super(AlexNet, self).__init__()
+        super().__init__()
         self.features = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2),
             nn.ReLU(inplace=True),

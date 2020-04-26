@@ -39,6 +39,9 @@ def create_model(model_name, pretrained=True):
 
 def make_model(model_name, *args, **kwargs):
     """Factory funtion to create project supported models"""
+
+    logger.info(f'Creating model {model_name}')
+
     if model_name == 'alexnet':
         return AlexNet(*args, **kwargs)
     elif model_name == 'i-alexnet':
