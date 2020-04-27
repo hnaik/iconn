@@ -6,14 +6,15 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
+black = "*"
+jupyterlab = "*"
+matplotlib = "*"
 numpy = "*"
 pandas = "*"
-matplotlib = "*"
 plotly = "*"
+sklearn = "*"
 torch = "*"
 torchvision = "*"
-jupyterlab = "*"
-sklearn = "*"
 
 [requires]
-python_version = "3.7"
+python_version = "3.8"
