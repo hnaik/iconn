@@ -94,7 +94,7 @@ def write_ellipse(center, size, color, thickness, output_dir):
     return paths
 
 
-def make_shapes(size_range, position_start=(0, 0), thickness_range=(1, 5)):
+def make_shapes(size_range, position_start=(0, 0)):
     square_output_root = args.output_dir / f'{args.dim}x{args.dim}/squares'
     circle_output_root = args.output_dir / f'{args.dim}x{args.dim}/circles'
     triangle_output_root = args.output_dir / f'{args.dim}x{args.dim}/triangles'
@@ -117,7 +117,7 @@ def make_shapes(size_range, position_start=(0, 0), thickness_range=(1, 5)):
 
         logger.debug(f'color={color}, code={color_code}')
 
-        for thickness in range(thickness_range[0], thickness_range[1]):
+        for thickness in range(args.thickness_begin, args.thickness_end):
             for size in range(size_range[0], size_range[1]):
                 for row_begin in range(position_start[0], args.dim - size):
                     for col_begin in range(position_start[1], args.dim - size):
@@ -177,7 +177,15 @@ def make_shapes(size_range, position_start=(0, 0), thickness_range=(1, 5)):
             label_counts.update({key: count})
 
         data = {
-            'metadata': {'label_counts': label_counts, 'total_count': total},
+            'metadata': {
+                'label_counts': label_counts,
+                'total_count': total,
+                'dim': args.dim,
+                'size_begin': args.size_begin,
+                'size_end': args.size_end,
+                'thickness_begin': args.thickness_begin,
+                'thickness_end': args.thickness_end,
+            },
             'label_paths': label_paths,
         }
 
@@ -186,12 +194,18 @@ def make_shapes(size_range, position_start=(0, 0), thickness_range=(1, 5)):
 
 
 def main():
-    make_shapes(size_range=(16, args.dim))
+    size_begin = args.dim / 2 if not args.size_begin else args.size_begin
+    size_end = args.dim if not args.size_end else args.size_end
+    make_shapes(size_range=(size_begin, size_end))
 
 
 if __name__ == '__main__':
     parser = ArgumentParser(sys.argv)
     parser.add_argument('-d', '--dim', type=int, default=32)
+    parser.add_argument('--size-begin', type=int)
+    parser.add_argument('--size-end', type=int)
+    parser.add_argument('--thickness-begin', type=int, default=1)
+    parser.add_argument('--thickness-end', type=int, default=5)
     parser.add_argument('-o', '--output-dir', type=Path, required=True)
 
     args = parser.parse_args()
