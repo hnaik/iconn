@@ -19,7 +19,9 @@ log_levels = {
 def init_logging():
     self_path = Path(sys.argv[0])
     root_dir = self_path.parent.parent.absolute()
-    logging.config.fileConfig(root_dir / 'logging_conf.ini')
+    logging.config.fileConfig(
+        root_dir / 'logging_conf.ini', disable_existing_loggers=False
+    )
 
 
 def get_log_levels():

@@ -25,6 +25,7 @@ from torch.utils.data import Dataset, DataLoader
 from types import SimpleNamespace
 
 from iconn import utils as ic_utils
+from iconn.models import interpretable as ip_models
 
 ic_utils.init_logging()
 
@@ -114,27 +115,9 @@ class DataSplitter:
             return json.load(f)
 
 
-class Net(nn.Module):
-    def __init__(self, num_classes):
-        super().__init__()
-        self.main = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=5, padding=2),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3),
-            nn.Flatten(),
-            nn.Linear(3136, num_classes),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, X):
-        if X.is_cuda:
-            return nn.parallel.data_parallel(self.main, X, range(1))
-
-
-def initialize_model(input_dir, test_size, device, batch_size, shuffle=True):
+def initialize_model(
+    input_dir, output_dir, test_size, device, batch_size, shuffle=True
+):
     splitter = DataSplitter(
         input_dir=input_dir,
         test_size=test_size,
@@ -143,7 +126,14 @@ def initialize_model(input_dir, test_size, device, batch_size, shuffle=True):
         x_labels='image_path',
         y_label='label',
     )
-    net = Net(num_classes=splitter.num_classes).to(device)
+    net = ip_models.make_model(
+        arch=args.arch, num_classes=splitter.num_classes, output_dir=output_dir
+    ).to(device)
+
+    # net = ip_models.DefaultNet(
+    #     num_classes=splitter.num_classes, output_dir=args.output_dir
+    # ).to(device)
+
     optimizer = optim.Adam(net.parameters())
 
     return SimpleNamespace(
@@ -193,7 +183,7 @@ def train(params, epochs, device, output_dir):
             params.optimizer.step()
 
             n_processed = (i + 1) * params.splitter.batch_size
-            if n_processed % 1000 == 0:
+            if n_processed % args.log_frequency == 0:
                 logger.info(
                     f'[{i + 1}] Epoch {epoch + 1}, '
                     + f'{n_processed} of {params.splitter.train_size}'
@@ -231,11 +221,6 @@ def test(params, device):
         y[idx] = target.to('cpu')
         y_preds[idx] = get_preds(output.squeeze(), num_classes)
 
-        if idx < 5:
-            logger.info(
-                f'{y[idx]}, {y_preds[idx]}, {output.to("cpu").squeeze()}'
-            )
-
         test_loss += params.criterion(output, target).item()
         y_pred = output.argmax(dim=1, keepdim=True)
         # y_correct = y_pred.eq(target.view_as(y_pred)).sum().item()
@@ -247,6 +232,9 @@ def test(params, device):
         )
 
         count_true += y[idx]
+
+        if (idx + 1) % args.log_frequency == 0:
+            logger.info(f'done processing {idx + 1} test samples')
     # logger.info(f'True Counts {count_true}')
     return correct, idx + 1, y, y_preds
     # return y, y_preds
@@ -273,14 +261,17 @@ def plot_layers(layers, output_dir):
 
 
 def main():
+    logger.info('Starting 2D shapes experiment')
+
+    output_dir = args.output_dir / datetime.now().strftime('%Y%m%d-%H%M%S')
+    output_dir.mkdir(parents=True, exist_ok=True)
     params = initialize_model(
         args.input_dir,
+        output_dir,
         test_size=args.test_fraction,
         device=args.device,
         batch_size=args.batch_size,
     )
-    output_dir = args.output_dir / datetime.now().strftime('%Y%m%d-%H%M%S')
-    output_dir.mkdir(parents=True, exist_ok=True)
     train(
         params, epochs=args.epochs, device=args.device, output_dir=output_dir
     )
@@ -309,6 +300,12 @@ def main():
 
 if __name__ == '__main__':
     parser = ArgumentParser(sys.argv)
+    parser.add_argument(
+        '--arch',
+        type=str,
+        default='default',
+        choices=['default', 'interpretable'],
+    )
     parser.add_argument('--input-dir', type=Path, required=True)
     parser.add_argument('--epochs', type=int, default=1)
     parser.add_argument('--device', choices=['cuda', 'cpu'], required=True)
@@ -316,6 +313,7 @@ if __name__ == '__main__':
     parser.add_argument('--test-fraction', type=float, default=0.2)
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--plot', action='store_true', default=False)
+    parser.add_argument('--log-frequency', type=int, default=1000)
     args = parser.parse_args()
 
     main()
