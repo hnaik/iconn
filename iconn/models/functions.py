@@ -163,7 +163,7 @@ class IntermediateLoggerBase(FilterLossBase):
         filename = f'data_{stage}_{norm_type}_{ts}.csv'
         np.savetxt(filename, stat_data, delimiter=',')
 
-        return X * template
+        return X
 
 
 class IntermediateLogger_Stage1_L1(IntermediateLoggerBase):
