@@ -86,6 +86,7 @@ def pick_template(stage, norm_type, idx):
 class FilterLossBase(torch.autograd.Function):
     @staticmethod
     def forward(ctx, X, stage, norm_type):
+        logger.info(f'X.shape={X.shape}, stage={stage}, norm_type={norm_type}')
         data = X.clone()
         ctx.save_for_backward(X)
         ctx.template = torch.zeros(X.shape)
@@ -100,9 +101,26 @@ class FilterLossBase(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         X, = ctx.saved_tensors
-        logger.debug(f'X.shape={X.shape}')
+        logger.info(f'X.shape={X.shape}')
         grad_input = grad_output.clone()
-        return grad_input
+
+        zt = 0
+        p_xt = torch.zeros([X.shape[0], X.shape[1]])
+        for i, d_0 in enumerate(X):
+            for j, d_1 in enumerate(d_0):
+                template = ctx.template[i][j]
+                x = X[i][j].cpu().detach().numpy()
+                p_xt[i][j] = torch.exp((template * x).sum())
+                zt += p_xt[i][j]
+
+        mi = 0
+        for i, d_0 in enumerate(X):
+            for j, d_1 in enumerate(d_0):
+                p_xt[i][j] /= zt
+                mi += p_xt[i][j] * torch.log(p_xt[i][j])
+
+        mi = mi.to('cuda')
+        return mi * grad_input
 
 
 class Filter_Stage1_L1(FilterLossBase):
@@ -155,10 +173,13 @@ class IntermediateLogger_Stage1_L2(IntermediateLoggerBase):
     def forward(ctx, X):
         return IntermediateLoggerBase.forward(ctx, X, stage=1, norm_type='l2')
 
+
 class IntermediateLogger_Stage1_Original(IntermediateLoggerBase):
     @staticmethod
     def forward(ctx, X):
-        return IntermediateLoggerBase.forward(ctx, X, stage=1, norm_type='original')
+        return IntermediateLoggerBase.forward(
+            ctx, X, stage=1, norm_type='original'
+        )
 
 
 class IntermediateLogger_Stage2_L1(IntermediateLoggerBase):
@@ -176,4 +197,6 @@ class IntermediateLogger_Stage2_L2(IntermediateLoggerBase):
 class IntermediateLogger_Stage2_Original(IntermediateLoggerBase):
     @staticmethod
     def forward(ctx, X):
-        return IntermediateLoggerBase.forward(ctx, X, stage=2, norm_type='original')
+        return IntermediateLoggerBase.forward(
+            ctx, X, stage=2, norm_type='original'
+        )
