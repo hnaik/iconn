@@ -101,26 +101,30 @@ class FilterLossBase(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         X, = ctx.saved_tensors
-        logger.info(f'X.shape={X.shape}')
         grad_input = grad_output.clone()
 
-        zt = 0
         p_xt = torch.zeros([X.shape[0], X.shape[1]])
+        trace = torch.zeros([X.shape[0], X.shape[1]])
+        p_t = alpha / (X.shape[2] * X.shape[2])
+        zt = 0
         for i, d_0 in enumerate(X):
             for j, d_1 in enumerate(d_0):
                 template = ctx.template[i][j]
                 x = X[i][j].cpu().detach().numpy()
-                p_xt[i][j] = torch.exp((template * x).sum())
+                trace[i][j] = (template * x).sum()
+                p_xt[i][j] = torch.exp(trace[i][j])
                 zt += p_xt[i][j]
 
-        mi = 0
         for i, d_0 in enumerate(X):
             for j, d_1 in enumerate(d_0):
-                p_xt[i][j] /= zt
-                mi += p_xt[i][j] * torch.log(p_xt[i][j])
+                e = p_xt[i][j]  # also considered zt_i
+                zt_ij = p_xt[i][j]
+                t = ctx.template[i][j]
+                y = trace[i][j] - log(zt_ij)
+                dl_x = p_t * e * t * y / zt
+                grad_input[i][j] += dl_x
 
-        mi = mi.to('cuda')
-        return mi * grad_input
+        return grad_input
 
 
 class Filter_Stage1_L1(FilterLossBase):
