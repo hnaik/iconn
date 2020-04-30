@@ -138,7 +138,7 @@ class IntermediateLoggerBase(FilterLossBase):
                 stat_data[i, j] = np.argmax(X[i][j].cpu().detach().numpy())
 
         ts = datetime.now().strftime('%Y%m%d-%H%M%S')
-        filename = f'data_{stage}_{norm_type}_{ts}.csv', 'w+')
+        filename = f'data_{stage}_{norm_type}_{ts}.csv'
         np.savetxt(filename, stat_data, delimiter=',')
 
         return X * template
