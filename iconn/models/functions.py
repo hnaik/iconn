@@ -155,6 +155,11 @@ class IntermediateLogger_Stage1_L2(IntermediateLoggerBase):
     def forward(ctx, X):
         return IntermediateLoggerBase.forward(ctx, X, stage=1, norm_type='l2')
 
+class IntermediateLogger_Stage1_Original(IntermediateLoggerBase):
+    @staticmethod
+    def forward(ctx, X):
+        return IntermediateLoggerBase.forward(ctx, X, stage=1, norm_type='original')
+
 
 class IntermediateLogger_Stage2_L1(IntermediateLoggerBase):
     @staticmethod
@@ -166,3 +171,9 @@ class IntermediateLogger_Stage2_L2(IntermediateLoggerBase):
     @staticmethod
     def forward(ctx, X):
         return IntermediateLoggerBase.forward(ctx, X, stage=2, norm_type='l2')
+
+
+class IntermediateLogger_Stage2_Original(IntermediateLoggerBase):
+    @staticmethod
+    def forward(ctx, X):
+        return IntermediateLoggerBase.forward(ctx, X, stage=2, norm_type='original')

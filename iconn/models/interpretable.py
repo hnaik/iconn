@@ -73,7 +73,7 @@ class InterpretableNet(nn.Module):
         # self.alpha = 0.001
         # self.beta = 0.1
 
-        # self.index = 0
+        self.index = 0
         # s1_norm_1, s1_norm_2, self.s1_neg = self.__make_templates(self.n1)
         # s2_norm_1, s2_norm_2, self.s2_neg = self.__make_templates(self.n2)
 
@@ -147,18 +147,21 @@ class InterpretableNet(nn.Module):
                 elif self.template_norm == 'l2':
                     X = ic_func.Filter_Stage1_L2.apply(X)
                 # Else no change
-            elif self.write_plots:
+            else:
                 if self.template_norm == 'l1':
                     X = ic_func.IntermediateLogger_Stage1_L1.apply(X)
                 elif self.template_norm == 'l2':
                     X = ic_func.IntermediateLogger_Stage1_L2.apply(X)
-                # Else no change
-                self.__output(
-                    X,
-                    output_dir=self.stage_1_dir,
-                    stage=0,
-                    tag=f'id-{self.index}_{self.template_norm}',
-                )
+                else:
+                    X = ic_func.IntermediateLogger_Stage1_Original.apply(X)
+
+                if self.write_plots:
+                    self.__output(
+                        X,
+                        output_dir=self.stage_1_dir,
+                        stage=0,
+                        tag=f'id-{self.index}_{self.template_norm}',
+                    )
 
             X = apply_parallel_X(self.max_pool)
             X = apply_parallel_X(self.stage_2)
@@ -168,19 +171,22 @@ class InterpretableNet(nn.Module):
                     X = ic_func.Filter_Stage2_L1.apply(X)
                 elif self.template_norm == 'l2':
                     X = ic_func.Filter_Stage2_L2.apply(X)
-
-            elif self.write_plots:
+                # Else no change
+            else:
                 if self.template_norm == 'l1':
                     X = ic_func.IntermediateLogger_Stage2_L1.apply(X)
                 elif self.template_norm == 'l2':
                     X = ic_func.IntermediateLogger_Stage2_L2.apply(X)
+                else:
+                    X = ic_func.IntermediateLogger_Stage2_Original.apply(X)
 
-                self.__output(
-                    X,
-                    output_dir=self.stage_2_dir,
-                    stage=1,
-                    tag=f'id-{self.index}_{self.template_norm}',
-                )
+                if self.write_plots:
+                    self.__output(
+                        X,
+                        output_dir=self.stage_2_dir,
+                        stage=1,
+                        tag=f'id-{self.index}_{self.template_norm}',
+                    )
 
             X = apply_parallel_X(self.max_pool)
             return apply_parallel_X(self.classifier)
