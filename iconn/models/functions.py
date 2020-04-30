@@ -86,7 +86,6 @@ def pick_template(stage, norm_type, idx):
 class FilterLossBase(torch.autograd.Function):
     @staticmethod
     def forward(ctx, X, stage, norm_type):
-        logger.info(f'X.shape={X.shape}, stage={stage}, norm_type={norm_type}')
         data = X.clone()
         ctx.save_for_backward(X)
         ctx.template = torch.zeros(X.shape)
@@ -120,7 +119,7 @@ class FilterLossBase(torch.autograd.Function):
                 e = p_xt[i][j]  # also considered zt_i
                 zt_ij = p_xt[i][j]
                 t = ctx.template[i][j]
-                y = trace[i][j] - log(zt_ij)
+                y = trace[i][j] - torch.log(zt_ij)
                 dl_x = p_t * e * t * y / zt
                 grad_input[i][j] += dl_x
 
