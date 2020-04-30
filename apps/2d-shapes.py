@@ -318,7 +318,9 @@ if __name__ == '__main__':
     parser.add_argument('--plot', action='store_true', default=False)
     parser.add_argument('--log-frequency', type=int, default=1000)
     parser.add_argument('--write-plots', action='store_true', default=False)
-    parser.add_argument('--template-norm', choices=['l1', 'l2'], default='l1')
+    parser.add_argument(
+        '--template-norm', choices=['l1', 'l2', 'original'], default='original'
+    )
     args = parser.parse_args()
 
     main()

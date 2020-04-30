@@ -3,6 +3,8 @@ import math
 import numpy as np
 import torch
 
+from datetime import datetime
+
 from iconn import utils as ic_utils
 
 ic_utils.init_logging()
@@ -90,10 +92,9 @@ class FilterLossBase(torch.autograd.Function):
         for i, d_0 in enumerate(X):
             for j, d_1 in enumerate(d_0):
                 max_idx = np.argmax(X[i][j].cpu().detach().numpy())
-                ctx.template[i][j] = pick_template(
-                    stage, norm_type, max_idx
-                ).to('cuda')
-                data[i][j] *= ctx.template[i][j]
+                template = pick_template(stage, norm_type, max_idx).to('cuda')
+                data[i][j] *= template
+                ctx.template[i][j] = template.to('cpu')
         return data
 
     @staticmethod
@@ -131,8 +132,14 @@ class Filter_Stage2_L2(FilterLossBase):
 class IntermediateLoggerBase(FilterLossBase):
     @staticmethod
     def forward(ctx, X, stage, norm_type):
-        max_idx = np.argmax(X.cpu().detach().numpy())
-        template = pick_template(stage, norm_type, max_idx)
+        stat_data = np.zeros([X.shape[0], X.shape[1]])
+        for i, d_0 in enumerate(X):
+            for j, d_1 in enumerate(d_0):
+                stat_data[i, j] = np.argmax(X[i][j].cpu().detach().numpy())
+
+        ts = datetime.now().strftime('%Y%m%d-%H%M%S')
+        filename = f'data_{stage}_{norm_type}_{ts}.csv', 'w+')
+        np.savetxt(filename, stat_data, delimiter=',')
 
         return X * template
 
