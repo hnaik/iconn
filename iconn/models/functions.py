@@ -121,7 +121,7 @@ class FilterLossBase(torch.autograd.Function):
                 t = ctx.template[i][j]
                 y = trace[i][j] - torch.log(zt_ij)
                 dl_x = p_t * e * t * y / zt
-                grad_input[i][j] += dl_x
+                grad_input[i][j] += dl_x.to('cuda')
 
         return grad_input
 
