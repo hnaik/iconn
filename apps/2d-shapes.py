@@ -127,7 +127,10 @@ def initialize_model(
         y_label='label',
     )
     net = ip_models.make_model(
-        arch=args.arch, num_classes=splitter.num_classes, output_dir=output_dir
+        arch=args.arch,
+        num_classes=splitter.num_classes,
+        output_dir=output_dir,
+        args=args,
     ).to(device)
 
     # net = ip_models.DefaultNet(
@@ -314,6 +317,8 @@ if __name__ == '__main__':
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--plot', action='store_true', default=False)
     parser.add_argument('--log-frequency', type=int, default=1000)
+    parser.add_argument('--write-plots', action='store_true', default=False)
+    parser.add_argument('--template-norm', choices=['l1', 'l2'], default='l1')
     args = parser.parse_args()
 
     main()
