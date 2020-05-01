@@ -2,6 +2,7 @@ import logging
 import logging.config
 import sys
 
+from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -30,3 +31,14 @@ def get_log_levels():
 
 def set_level(logger_instance, level_name):
     return logger_instance.setLevel(log_levels[level_name])
+
+
+def timed_routine(func):
+    def wrapper(*args, **kwargs):
+        start = datetime.now()
+        return_value = func(*args, **kwargs)
+        end = datetime.now()
+        logger.info(f'Elapsed time {end - start}')
+        return return_value
+
+    return wrapper

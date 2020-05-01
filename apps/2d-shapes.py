@@ -35,6 +35,26 @@ logger = logging.getLogger('2d-shapes')
 torch.manual_seed(0)
 
 
+def plot_heatmap(weights, output_dir, stem):
+    # file_path = output_dir / f'{stem}.png'
+    # cv2.imwrite(str(output_path), weights)
+
+    for idx, weight in enumerate(weights):
+        plt.imshow(weight, cmap='gray')
+        plt.axis('off')
+        plt.tight_layout()
+        file_path = output_dir / f'{stem}_channel-{idx}.png'
+        plt.savefig(file_path)
+
+
+def plot_layers(layers, output_dir):
+    for layer_idx, layer in enumerate(layers):
+        output_path = output_dir / str(layer_idx + 1)
+        output_path.mkdir(parents=True, exist_ok=True)
+        for idx, w in enumerate(layer):
+            plot_heatmap(w, output_path, f'layer-{idx + 1}')
+
+
 class Image64Dataset(Dataset):
     def __init__(self, X, y):
         # self.__df = df
@@ -150,51 +170,12 @@ def initialize_model(
     )
 
 
-def timed_routine(func):
-    def wrapper(*args, **kwargs):
-        start = datetime.now()
-        func(*args, **kwargs)
-        end = datetime.now()
-        logger.info(f'Elapsed time {end - start}')
-
-    return wrapper
-
-
 def get_conv_weights(model):
     layers = []
     for m in model.modules():
         if type(m) == nn.Conv2d:
             layers.append(m.weight.data.squeeze().cpu().numpy())
     return layers
-
-
-@timed_routine
-def train(params, epochs, device, output_dir):
-    model = params.net
-    model.train()
-    for epoch in range(epochs):
-        for i, (data, label) in enumerate(params.splitter.train_loader):
-            model.zero_grad()
-
-            data = data.to(device)
-            label = label.to(device)
-
-            output = model(data)
-            loss = params.criterion(output, label)
-            loss.backward()
-            y_pred = output.mean().item()
-            params.optimizer.step()
-
-            n_processed = (i + 1) * params.splitter.batch_size
-            if n_processed % args.log_frequency == 0:
-                logger.info(
-                    f'[{i + 1}] Epoch {epoch + 1}, '
-                    + f'{n_processed} of {params.splitter.train_size}'
-                )
-                # logger.info(f'learned weights {get_conv_weights(model)}')
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(model.state_dict(), str(output_dir / 'models.pt'))
 
 
 def get_preds(output, size):
@@ -204,9 +185,45 @@ def get_preds(output, size):
     return norm_output
 
 
+def train_epoch(params, epoch, device):
+    params.net.train()
+
+    for i, (data, label) in enumerate(params.splitter.train_loader):
+        params.net.zero_grad()
+
+        data = data.to(device)
+        label = label.to(device)
+
+        output = params.net(data)
+        loss = params.criterion(output, label)
+
+        params.optimizer.zero_grad()
+        loss.backward()
+        params.optimizer.step()
+
+        idx = i + 1
+        processed = idx * params.splitter.batch_size
+        if processed % args.log_frequency == 0:
+            logger.info(
+                f'[{idx + 1}] Epoch {epoch}, {processed} of '
+                + f'{params.splitter.train_size}'
+            )
+
+
+@ic_utils.timed_routine
+def train(params, epochs, device, output_dir):
+    params.net = params.net
+
+    for epoch in range(epochs):
+        train_epoch(params, epoch, device)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    torch.save(params.net.state_dict(), str(output_dir / 'models.pt'))
+
+
+@ic_utils.timed_routine
 def test(params, device):
-    model = params.net
-    model.eval()
+    params.net.eval()
     test_loss = 0
     correct = 0
     idx = 0
@@ -216,51 +233,41 @@ def test(params, device):
     y_preds = np.zeros(test_size * num_classes).reshape(test_size, num_classes)
 
     count_true = 0
-    for idx, (data, target) in enumerate(params.splitter.test_loader):
-        data = data.to(device)
-        target = target.to(device)
-        output = model(data)
+    total = 0
+    with torch.no_grad():
+        for idx, (data, target) in enumerate(params.splitter.test_loader):
+            total = idx + 1
+            data = data.to(device)
+            target = target.to(device)
+            output = params.net(data)
 
-        y[idx] = target.to('cpu')
-        y_preds[idx] = get_preds(output.squeeze(), num_classes)
+            y[idx] = target.to('cpu')
+            y_preds[idx] = get_preds(output.squeeze(), num_classes)
 
-        test_loss += params.criterion(output, target).item()
-        y_pred = output.argmax(dim=1, keepdim=True)
-        # y_correct = y_pred.eq(target.view_as(y_pred)).sum().item()
+            test_loss += params.criterion(output, target).item()
+            y_pred = output.argmax(dim=1, keepdim=True)
+            # y_correct = y_pred.eq(target.view_as(y_pred)).sum().item()
 
-        correct += (
-            1
-            if (y_preds[idx][0] == y[idx][0] and y_preds[idx][1] == y[idx][1])
-            else 0
-        )
+            correct += (
+                1
+                if (
+                    y_preds[idx][0] == y[idx][0]
+                    and y_preds[idx][1] == y[idx][1]
+                )
+                else 0
+            )
 
-        count_true += y[idx]
+            count_true += y[idx]
 
-        if (idx + 1) % args.log_frequency == 0:
-            logger.info(f'done processing {idx + 1} test samples')
-    # logger.info(f'True Counts {count_true}')
-    return correct, idx + 1, y, y_preds
-    # return y, y_preds
+            if (idx + 1) % args.log_frequency == 0:
+                logger.debug(f'done processing {idx + 1} test samples')
 
+    logger.info(
+        f'[{total}] correct={correct}, len(y)={len(y)}, '
+        + f'len(y_preds)={len(y_preds)}'
+    )
 
-def plot_heatmap(weights, output_dir, stem):
-    # file_path = output_dir / f'{stem}.png'
-    # cv2.imwrite(str(output_path), weights)
-
-    for idx, weight in enumerate(weights):
-        plt.imshow(weight, cmap='gray')
-        plt.axis('off')
-        plt.tight_layout()
-        file_path = output_dir / f'{stem}_channel-{idx}.png'
-        plt.savefig(file_path)
-
-
-def plot_layers(layers, output_dir):
-    for layer_idx, layer in enumerate(layers):
-        output_path = output_dir / str(layer_idx + 1)
-        output_path.mkdir(parents=True, exist_ok=True)
-        for idx, w in enumerate(layer):
-            plot_heatmap(w, output_path, f'layer-{idx + 1}')
+    return correct, total, y, y_preds
 
 
 def main():
@@ -280,6 +287,10 @@ def main():
     )
 
     correct, total, y, y_preds = test(params, device=args.device)
+
+    # rets = test(params, device=args.device)
+    # print(rets)
+
     # y, y_preds = test(params, device=args.device)
     accuracy = correct * 100.0 / total
     p, r, f, s = precision_recall_fscore_support(y, y_preds)
