@@ -34,17 +34,17 @@ def compute_dist(pos, center, n, func):
 
 def make_templates(n):
     template_count = n * n
-    t_l1 = [torch.zeros([n, n])] * template_count
-    t_l2 = [torch.zeros([n, n])] * template_count
+    t_l1 = [torch.zeros([n, n]).to('cuda')] * template_count
+    t_l2 = [torch.zeros([n, n]).to('cuda')] * template_count
 
     logger.info(f'making {template_count} of size {n}x{n}')
 
-    for t_idx in range(template_count):
-        center = (t_idx // n, t_idx % n)
-        for i in range(n):
-            for j in range(n):
-                t_l1[t_idx][i, j] = compute_dist((i, j), center, n, l1_norm)
-                t_l2[t_idx][i, j] = compute_dist((i, j), center, n, l2_norm)
+    # for t_idx in range(template_count):
+    #     center = (t_idx // n, t_idx % n)
+    #     for i in range(n):
+    #         for j in range(n):
+    #             t_l1[t_idx][i, j] = compute_dist((i, j), center, n, l1_norm)
+    #             t_l2[t_idx][i, j] = compute_dist((i, j), center, n, l2_norm)
 
     t_neg_np = np.zeros([n, n])
     t_neg_np.fill(-tau)
@@ -86,42 +86,42 @@ def pick_template(stage, norm_type, idx):
 class FilterLossBase(torch.autograd.Function):
     @staticmethod
     def forward(ctx, X, stage, norm_type):
+        # logger.info('forward')
         data = X.clone()
         ctx.save_for_backward(X)
-        ctx.template = torch.zeros(X.shape)
+        ctx.template = torch.zeros(X.shape).to('cuda')
         for i, d_0 in enumerate(X):
             for j, d_1 in enumerate(d_0):
                 max_idx = np.argmax(X[i][j].cpu().detach().numpy())
-                template = pick_template(stage, norm_type, max_idx).to('cuda')
+                template = pick_template(stage, norm_type, max_idx)
                 data[i][j] *= template
-                ctx.template[i][j] = template.to('cpu')
+                ctx.template[i][j] = template  # .to('cpu')
         return data
 
     @staticmethod
     def backward(ctx, grad_output):
+        # logger.info('backward')
         X, = ctx.saved_tensors
         grad_input = grad_output.clone()
 
-        p_xt = torch.zeros([X.shape[0], X.shape[1]])
-        trace = torch.zeros([X.shape[0], X.shape[1]])
         p_t = alpha / (X.shape[2] * X.shape[2])
-        zt = 0
-        for i, d_0 in enumerate(X):
-            for j, d_1 in enumerate(d_0):
-                template = ctx.template[i][j]
-                x = X[i][j].cpu().detach().numpy()
-                trace[i][j] = (template * x).sum()
-                p_xt[i][j] = torch.exp(trace[i][j])
-                zt += p_xt[i][j]
 
+        masked = ctx.template * X
+
+        p_xt = torch.zeros([X.shape[0], X.shape[1]]).to('cuda')
+        trace = torch.zeros([X.shape[0], X.shape[1]]).to('cuda')
         for i, d_0 in enumerate(X):
             for j, d_1 in enumerate(d_0):
-                e = p_xt[i][j]  # also considered zt_i
-                zt_ij = p_xt[i][j]
+                trace[i][j] = torch.trace(masked[i][j])
+                p_xt[i][j] = torch.exp(trace[i][j])
+
+        zt = p_xt.sum()
+        for i, d_0 in enumerate(X):
+            for j, d_1 in enumerate(d_0):
                 t = ctx.template[i][j]
-                y = trace[i][j] - torch.log(zt_ij)
-                dl_x = p_t * e * t * y / zt
-                grad_input[i][j] += dl_x.to('cuda')
+                y = trace[i][j] - torch.log(p_xt[i][j])
+                dl_x = p_t * p_xt[i][j] * t * y / zt
+                grad_input[i][j] += dl_x
 
         return grad_input
 
@@ -158,9 +158,9 @@ class IntermediateLoggerBase(FilterLossBase):
             for j, d_1 in enumerate(d_0):
                 stat_data[i, j] = np.argmax(X[i][j].cpu().detach().numpy())
 
-        ts = datetime.now().strftime('%Y%m%d-%H%M%S')
-        filename = f'data_{stage}_{norm_type}_{ts}.csv'
-        np.savetxt(filename, stat_data, delimiter=',')
+        # ts = datetime.now().strftime('%Y%m%d-%H%M%S')
+        # filename = f'data_{stage}_{norm_type}_{ts}.csv'
+        # np.savetxt(filename, stat_data, delimiter=',')
 
         return X
 
