@@ -39,12 +39,12 @@ def make_templates(n):
 
     logger.info(f'making {template_count} of size {n}x{n}')
 
-    # for t_idx in range(template_count):
-    #     center = (t_idx // n, t_idx % n)
-    #     for i in range(n):
-    #         for j in range(n):
-    #             t_l1[t_idx][i, j] = compute_dist((i, j), center, n, l1_norm)
-    #             t_l2[t_idx][i, j] = compute_dist((i, j), center, n, l2_norm)
+    for t_idx in range(template_count):
+        center = (t_idx // n, t_idx % n)
+        for i in range(n):
+            for j in range(n):
+                t_l1[t_idx][i, j] = compute_dist((i, j), center, n, l1_norm)
+                t_l2[t_idx][i, j] = compute_dist((i, j), center, n, l2_norm)
 
     t_neg_np = np.zeros([n, n])
     t_neg_np.fill(-tau)
@@ -86,22 +86,20 @@ def pick_template(stage, norm_type, idx):
 class FilterLossBase(torch.autograd.Function):
     @staticmethod
     def forward(ctx, X, stage, norm_type):
-        # logger.info('forward')
         data = X.clone()
         ctx.save_for_backward(X)
         ctx.template = torch.zeros(X.shape).to('cuda')
         for i, d_0 in enumerate(X):
             for j, d_1 in enumerate(d_0):
                 max_idx = np.argmax(X[i][j].cpu().detach().numpy())
-                template = pick_template(stage, norm_type, max_idx)
+                template = pick_template(stage, norm_type, max_idx).to('cuda')
                 data[i][j] *= template
                 ctx.template[i][j] = template  # .to('cpu')
         return data
 
     @staticmethod
     def backward(ctx, grad_output):
-        # logger.info('backward')
-        X, = ctx.saved_tensors
+        (X,) = ctx.saved_tensors
         grad_input = grad_output.clone()
 
         p_t = alpha / (X.shape[2] * X.shape[2])

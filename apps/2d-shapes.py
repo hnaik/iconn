@@ -151,7 +151,12 @@ def initialize_model(
         num_classes=splitter.num_classes,
         output_dir=output_dir,
         args=args,
-    ).to(device)
+    )
+
+    if not args.gpu_id:
+        net = nn.DataParallel(net)
+
+    net = net.to(device)
 
     # net = ip_models.DefaultNet(
     #     num_classes=splitter.num_classes, output_dir=args.output_dir
@@ -188,6 +193,7 @@ def get_preds(output, size):
 def train_epoch(params, epoch, device):
     params.net.train()
 
+    begin = datetime.now()
     for i, (data, label) in enumerate(params.splitter.train_loader):
         params.net.zero_grad()
 
@@ -204,10 +210,18 @@ def train_epoch(params, epoch, device):
         idx = i + 1
         processed = idx * params.splitter.batch_size
         if processed % args.log_frequency == 0:
+            now = datetime.now()
+            duration = now - begin
+
             logger.info(
-                f'[{idx + 1}] Epoch {epoch}, {processed} of '
-                + f'{params.splitter.train_size}'
+                f'[{idx:5d}] Epoch {epoch + 1}, {processed:8d} of '
+                + f'{params.splitter.train_size}, '
+                + f'avg. time per item {duration / processed} '
+                + f'avg. time per iteration {duration / idx}'
             )
+
+            # Don't update, since we want to count since the beginning
+            # begin = now
 
 
 @ic_utils.timed_routine
@@ -215,7 +229,10 @@ def train(params, epochs, device, output_dir):
     params.net = params.net
 
     for epoch in range(epochs):
+        begin = datetime.now()
         train_epoch(params, epoch, device)
+        duration = datetime.now() - begin
+        logger.info(f'Finished epoch {epoch + 1}, time {duration}')
 
     output_dir.mkdir(parents=True, exist_ok=True)
     torch.save(params.net.state_dict(), str(output_dir / 'models.pt'))
@@ -272,6 +289,13 @@ def test(params, device):
 
 def main():
     logger.info('Starting 2D shapes experiment')
+
+    if args.gpu_id:
+        logger.info(f'Using GPU {args.gpu_id}')
+    else:
+        logger.info(
+            f'No GPU specified, using {torch.cuda.device_count()} available GPUs'
+        )
 
     output_dir = args.output_dir / datetime.now().strftime('%Y%m%d-%H%M%S')
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -332,6 +356,11 @@ if __name__ == '__main__':
     parser.add_argument(
         '--template-norm', choices=['l1', 'l2', 'original'], default='original'
     )
+    parser.add_argument('--gpu-id', type=int, default=None)
+    parser.add_argument(
+        '--cache-dir', type=int, help='Directory to write temporary files'
+    )
+
     args = parser.parse_args()
 
     main()

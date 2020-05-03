@@ -72,7 +72,8 @@ class InterpretableNet(nn.Module):
 
     def forward(self, X):
         def apply_parallel_X(component):
-            return nn.parallel.data_parallel(component, X, range(1))
+            # return nn.parallel.data_parallel(component, X, range(1))
+            return component(X)
 
         if not self.training:
             self.index += 1
