@@ -24,6 +24,12 @@ def init_logging():
         root_dir / 'logging_conf.ini', disable_existing_loggers=False
     )
 
+    logging.addLevelName(logging.CRITICAL, 'C')
+    logging.addLevelName(logging.ERROR, 'E')
+    logging.addLevelName(logging.WARNING, 'W')
+    logging.addLevelName(logging.INFO, 'I')
+    logging.addLevelName(logging.DEBUG, 'D')
+
 
 def get_log_levels():
     return log_levels.keys()

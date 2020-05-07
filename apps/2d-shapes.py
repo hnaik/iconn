@@ -154,6 +154,9 @@ def initialize_model(
     )
 
     if not args.gpu_id:
+        logger.info(
+            f'No GPU ID specified, using all {torch.cuda.device_count()} GPUs'
+        )
         net = nn.DataParallel(net)
 
     net = net.to(device)
@@ -235,12 +238,21 @@ def train(params, epochs, device, output_dir):
         logger.info(f'Finished epoch {epoch + 1}, time {duration}')
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(params.net.state_dict(), str(output_dir / 'models.pt'))
+    model_to_save = {
+        'model': params.net.state_dict(),
+        'optimizer': params.optimizer.state_dict(),
+        'arch': args.arch,
+    }
+    saved_model_dir = output_dir / 'models'
+    saved_model_dir.mkdir(parents=True, exist_ok=True)
+    model_file_path = saved_model_dir / 'models.pt'
+    torch.save(model_to_save, model_file_path)
+
+    # torch.save(params.net.state_dict(), str(output_dir / 'models.pt'))
 
 
 @ic_utils.timed_routine
 def test(params, device):
-    params.net.eval()
     test_loss = 0
     correct = 0
     idx = 0
@@ -251,6 +263,8 @@ def test(params, device):
 
     count_true = 0
     total = 0
+    logger.info('Starting test')
+    params.net.eval()
     with torch.no_grad():
         for idx, (data, target) in enumerate(params.splitter.test_loader):
             total = idx + 1
@@ -276,7 +290,7 @@ def test(params, device):
 
             count_true += y[idx]
 
-            if (idx + 1) % args.log_frequency == 0:
+            if (idx + 1) % 10 == 0:
                 logger.debug(f'done processing {idx + 1} test samples')
 
     logger.info(
@@ -306,24 +320,36 @@ def main():
         device=args.device,
         batch_size=args.batch_size,
     )
-    train(
-        params, epochs=args.epochs, device=args.device, output_dir=output_dir
-    )
+
+    if not args.pretrained_model_path:
+        logger.info('No pretrained model provided, starting training')
+        train(
+            params,
+            epochs=args.epochs,
+            device=args.device,
+            output_dir=output_dir,
+        )
+    else:
+        logger.info(
+            f'Loading pre-trained model from {args.pretrained_model_path}'
+        )
+
+        saved = torch.load(args.pretrained_model_path)
+
+        logger.info('loaded pretrained model')
+        params.net.load_state_dict(saved['model'])
+        params.optimizer.load_state_dict(saved['optimizer'])
+        logger.info('loaded state dictionary')
+
+        params.net = nn.DataParallel(params.net)
 
     correct, total, y, y_preds = test(params, device=args.device)
 
-    # rets = test(params, device=args.device)
-    # print(rets)
-
-    # y, y_preds = test(params, device=args.device)
     accuracy = correct * 100.0 / total
     p, r, f, s = precision_recall_fscore_support(y, y_preds)
     precision = p.mean() * 100
     recall = r.mean() * 100
     f_score = f.mean() * 100
-    # logger.info(
-    #     f'[{args.epochs}, {precision:0.2f}, {recall:0.2f}, {f_score:0.2f}]'
-    # )
     logger.info(
         f'[{args.epochs}, {accuracy:0.2f}, {precision:0.2f}, {recall:0.2f}, '
         + f'{f_score:0.2f}]'
@@ -360,6 +386,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--cache-dir', type=int, help='Directory to write temporary files'
     )
+    parser.add_argument('--pretrained-model-path', type=Path)
 
     args = parser.parse_args()
 
