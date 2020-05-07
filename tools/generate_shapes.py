@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
 import cv2
+import json
 import logging
 import matplotlib.pylab as plt
 import numpy as np
+import os
 import sys
 
 from argparse import ArgumentParser
@@ -22,19 +24,21 @@ def write_file(image, output_dir, stem):
     output_path = output_dir / f'{stem}.png'
     cv2.imwrite(str(output_path), image)
 
+    return os.path.relpath(output_path.absolute(), args.output_dir)
+
 
 def write_square(begin, end, color, thickness, output_dir):
     image = np.zeros((args.dim, args.dim, 3))
     cv2.rectangle(image, begin, end, color, thickness)
     f_stem = f'r{begin[0]}-c{begin[1]}_sz{end[0] - begin[0]}_t{thickness}'
-    write_file(image, output_dir, f_stem)
+    return [write_file(image, output_dir, f_stem)]
 
 
 def write_circle(center, radius, color, thickness, output_dir):
     image = np.zeros((args.dim, args.dim, 3))
     cv2.circle(image, center, radius, color, thickness)
     f_stem = f'r{center[0]}-c{center[1]}_d{radius * 2}_t{thickness}'
-    write_file(image, output_dir, f_stem)
+    return [write_file(image, output_dir, f_stem)]
 
 
 def make_triangle(corner, side_length, color, thickness):
@@ -59,7 +63,7 @@ def make_triangle(corner, side_length, color, thickness):
 def write_triangle(point, side_length, color, thickness, output_dir):
     image = make_triangle(point, side_length, color, thickness)
     f_stem = f'r{point[0]}-c{point[1]}_l{side_length}_t{thickness}'
-    write_file(image, output_dir, f_stem)
+    return [write_file(image, output_dir, f_stem)]
 
 
 def make_ellipse(center, size, angle, color, thickness):
@@ -81,17 +85,22 @@ def make_ellipse(center, size, angle, color, thickness):
 def write_ellipse(center, size, color, thickness, output_dir):
     # angles = [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165]
     angles = [0, 45, 90, 135]
+
+    paths = []
     for angle in angles:
         image = make_ellipse(center, size, angle, color, thickness)
         f_stem = f'f{center[0]}-c{center[1]}_s{size}_a{angle}_t{thickness}'
-        write_file(image, output_dir, f_stem)
+        paths.append(write_file(image, output_dir, f_stem))
+    return paths
 
 
-def make_shapes(size_range, position_start=(0, 0), thickness_range=(1, 5)):
+def make_shapes(size_range, position_start=(0, 0)):
     square_output_root = args.output_dir / f'{args.dim}x{args.dim}/squares'
     circle_output_root = args.output_dir / f'{args.dim}x{args.dim}/circles'
     triangle_output_root = args.output_dir / f'{args.dim}x{args.dim}/triangles'
     ellipse_output_root = args.output_dir / f'{args.dim}x{args.dim}/ellipses'
+
+    label_paths = {'square': [], 'circle': [], 'triangle': [], 'ellipse': []}
 
     for color, color_code in colors.items():
         square_output_dir = square_output_root / f'{color}'
@@ -108,7 +117,7 @@ def make_shapes(size_range, position_start=(0, 0), thickness_range=(1, 5)):
 
         logger.debug(f'color={color}, code={color_code}')
 
-        for thickness in range(thickness_range[0], thickness_range[1]):
+        for thickness in range(args.thickness_begin, args.thickness_end):
             for size in range(size_range[0], size_range[1]):
                 for row_begin in range(position_start[0], args.dim - size):
                     for col_begin in range(position_start[1], args.dim - size):
@@ -117,49 +126,86 @@ def make_shapes(size_range, position_start=(0, 0), thickness_range=(1, 5)):
                         position_begin = (row_begin, col_begin)
                         position_end = (row_begin + size, col_begin + size)
 
-                        write_square(
-                            position_begin,
-                            position_end,
-                            color_code,
-                            thickness,
-                            square_output_dir,
+                        label_paths['square'].extend(
+                            write_square(
+                                position_begin,
+                                position_end,
+                                color_code,
+                                thickness,
+                                square_output_dir,
+                            )
                         )
 
                         radius = size // 2
                         center = (row_begin + radius, col_begin + radius)
-                        write_circle(
-                            center,
-                            radius,
-                            color_code,
-                            thickness,
-                            circle_output_dir,
+                        label_paths['circle'].extend(
+                            write_circle(
+                                center,
+                                radius,
+                                color_code,
+                                thickness,
+                                circle_output_dir,
+                            )
                         )
 
                         point = (row_begin, col_begin + (size // 2))
-                        write_triangle(
-                            point,
-                            size,
-                            color_code,
-                            thickness,
-                            triangle_output_dir,
+                        label_paths['triangle'].extend(
+                            write_triangle(
+                                point,
+                                size,
+                                color_code,
+                                thickness,
+                                triangle_output_dir,
+                            )
                         )
 
-                        write_ellipse(
-                            center,
-                            size,
-                            color_code,
-                            thickness,
-                            ellipse_output_dir,
+                        label_paths['ellipse'].extend(
+                            write_ellipse(
+                                center,
+                                size,
+                                color_code,
+                                thickness,
+                                ellipse_output_dir,
+                            )
                         )
+
+        label_counts = {}
+        total = 0
+        for key, values in label_paths.items():
+            count = len(values)
+            total += count
+            label_counts.update({key: count})
+
+        data = {
+            'metadata': {
+                'label_counts': label_counts,
+                'total_count': total,
+                'dim': args.dim,
+                'size_begin': args.size_begin,
+                'size_end': args.size_end,
+                'thickness_begin': args.thickness_begin,
+                'thickness_end': args.thickness_end,
+            },
+            'label_paths': label_paths,
+        }
+
+        with open(args.output_dir / 'metadata.json', 'w') as f:
+            json.dump(data, f, indent=4)
 
 
 def main():
-    make_shapes(size_range=(16, args.dim))
+    size_begin = args.dim / 2 if not args.size_begin else args.size_begin
+    size_end = args.dim if not args.size_end else args.size_end
+    make_shapes(size_range=(size_begin, size_end))
 
 
 if __name__ == '__main__':
     parser = ArgumentParser(sys.argv)
     parser.add_argument('-d', '--dim', type=int, default=32)
+    parser.add_argument('--size-begin', type=int)
+    parser.add_argument('--size-end', type=int)
+    parser.add_argument('--thickness-begin', type=int, default=1)
+    parser.add_argument('--thickness-end', type=int, default=5)
     parser.add_argument('-o', '--output-dir', type=Path, required=True)
 
     args = parser.parse_args()
