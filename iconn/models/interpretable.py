@@ -1,12 +1,19 @@
 import logging
 import math
 import matplotlib.pyplot as plt
+from multiprocessing import Pool
 import numpy as np
+from queue import Queue
+import time
 import torch
 import torch.nn as nn
 
+from PIL import Image
+from torchvision import transforms
+
 from iconn import utils as ic_utils
 from iconn.models import functions as ic_func
+
 
 ic_utils.init_logging()
 
@@ -44,7 +51,37 @@ class CorrectiveAutograd(torch.autograd.Function):
         return grad_input
 
 
+import multiprocessing as mp
+
+
+class ImageProcessor:
+    def __init__(self, n_queues):
+        self.__queues = [mp.Queue()] * n_queues
+        self.p_1 = mp.Process(target=self.process, args=(0,))
+        self.p_2 = mp.Process(target=self.process, args=(1,))
+
+    def start(self):
+        logger.info('Starting image processor queues')
+        self.p_1.start()
+        self.p_2.start()
+
+    def add_item(self, idx, item):
+        self.__queues[int(idx)].put(item, block=False)
+
+    def process(self, idx):
+        while True:
+            item = self.__queues[int(idx)].get(block=True, timeout=None)
+            image = transforms.ToPILImage()(item['image'].cpu().detach())
+            plt.imshow(image, cmap='gray')
+            plt.axis('off')
+            plt.tight_layout()
+            plt.savefig(item['path'])
+
+
 class InterpretableNet(nn.Module):
+    iteration = 0
+    # image_proc = ImageProcessor(2)
+
     def __init__(self, num_classes, output_dir, write_plots, template_norm):
         super().__init__()
 
@@ -68,15 +105,28 @@ class InterpretableNet(nn.Module):
         self.index = 0
         self.write_plots = write_plots
 
-        logger.debug(f'Initialized network {self.__class__}')
+        if self.write_plots:
+            self.stage_1_dir = output_dir / 'stage_1'
+            self.stage_1_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(
+                f'writing stage 1 visualizations to {self.stage_1_dir}'
+            )
+
+            self.stage_2_dir = output_dir / 'stage_2'
+            self.stage_2_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(
+                f'writing stage 2 visualizations to {self.stage_2_dir}'
+            )
+
+        # self.image_proc.start()
+        logger.info(f'Initialized network {self.__class__}')
 
     def forward(self, X):
         def apply_parallel_X(component):
             # return nn.parallel.data_parallel(component, X, range(1))
             return component(X)
 
-        if not self.training:
-            self.index += 1
+        InterpretableNet.iteration += 1
 
         if X.is_cuda:
             X = apply_parallel_X(self.stage_1)
@@ -96,12 +146,7 @@ class InterpretableNet(nn.Module):
                     X = ic_func.IntermediateLogger_Stage1_Original.apply(X)
 
                 if self.write_plots:
-                    self.__output(
-                        X,
-                        output_dir=self.stage_1_dir,
-                        stage=0,  # stage 0-indexed
-                        tag=f'id-{self.index}_{self.template_norm}',
-                    )
+                    self.__output(X, output_dir=self.stage_1_dir, stage=1)
 
             X = apply_parallel_X(self.max_pool)
             X = apply_parallel_X(self.stage_2)
@@ -121,25 +166,33 @@ class InterpretableNet(nn.Module):
                     X = ic_func.IntermediateLogger_Stage2_Original.apply(X)
 
                 if self.write_plots:
-                    self.__output(
-                        X,
-                        output_dir=self.stage_2_dir,
-                        stage=1,  # stage 0-indexed
-                        tag=f'id-{self.index}_{self.template_norm}',
-                    )
+                    self.__output(X, output_dir=self.stage_2_dir, stage=2)
 
             X = apply_parallel_X(self.max_pool)
             return apply_parallel_X(self.classifier)
 
-    def __output(self, X, output_dir, stage, tag):
-        stage_id = f'stage-{stage}'
-        for idx, output in enumerate(X[0]):
-            prefix = f'{tag}_id-{idx}'
-            image = output.cpu().detach().numpy()
-            plt.imshow(image, cmap='gray')
-            plt.axis('off')
-            plt.tight_layout()
-            plt.savefig(output_dir / f'{prefix}.png')
+    def __output(self, X, output_dir, stage):
+        tag = f'id-{InterpretableNet.iteration:07d}_{self.template_norm}'
+        logger.info(
+            f'plotting index {InterpretableNet.iteration} stage {stage}'
+        )
+        for i, X_i in enumerate(X):
+            for j, X_ij in enumerate(X_i):
+                # self.image_proc.add_item(
+                #     idx=stage - 1,
+                #     item={
+                #         'image': X_ij,
+                #         'path': output_dir / f'{tag}_{i:03d}-{j:03d}.png',
+                #     },
+                # )
+
+                image = X_ij.cpu().detach().numpy()
+                x = X_ij.cpu().detach()
+                image = transforms.ToPILImage()(x)
+                plt.imshow(image, cmap='gray')
+                plt.axis('off')
+                plt.tight_layout()
+                plt.savefig(output_dir / f'{tag}_{i}-{j}.png')
 
 
 def make_model(arch, num_classes, output_dir, args):
