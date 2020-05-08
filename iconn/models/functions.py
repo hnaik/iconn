@@ -39,12 +39,12 @@ def make_templates(n):
 
     logger.info(f'making {template_count} of size {n}x{n}')
 
-    # for t_idx in range(template_count):
-    #     center = (t_idx // n, t_idx % n)
-    #     for i in range(n):
-    #         for j in range(n):
-    #             t_l1[t_idx][i, j] = compute_dist((i, j), center, n, l1_norm)
-    #             t_l2[t_idx][i, j] = compute_dist((i, j), center, n, l2_norm)
+    for t_idx in range(template_count):
+        center = (t_idx // n, t_idx % n)
+        for i in range(n):
+            for j in range(n):
+                t_l1[t_idx][i, j] = compute_dist((i, j), center, n, l1_norm)
+                t_l2[t_idx][i, j] = compute_dist((i, j), center, n, l2_norm)
 
     t_neg_np = np.zeros([n, n])
     t_neg_np.fill(-tau)

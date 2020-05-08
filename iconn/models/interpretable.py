@@ -118,7 +118,7 @@ class InterpretableNet(nn.Module):
             )
 
         # self.image_proc.start()
-        logger.info(f'Initialized network {self.__class__}')
+        logger.info(f'Initialized network {self.__class__.__name__}')
 
     def forward(self, X):
         def apply_parallel_X(component):
