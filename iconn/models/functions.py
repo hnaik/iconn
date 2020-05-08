@@ -39,12 +39,12 @@ def make_templates(n):
 
     logger.info(f'making {template_count} of size {n}x{n}')
 
-    for t_idx in range(template_count):
-        center = (t_idx // n, t_idx % n)
-        for i in range(n):
-            for j in range(n):
-                t_l1[t_idx][i, j] = compute_dist((i, j), center, n, l1_norm)
-                t_l2[t_idx][i, j] = compute_dist((i, j), center, n, l2_norm)
+    # for t_idx in range(template_count):
+    #     center = (t_idx // n, t_idx % n)
+    #     for i in range(n):
+    #         for j in range(n):
+    #             t_l1[t_idx][i, j] = compute_dist((i, j), center, n, l1_norm)
+    #             t_l2[t_idx][i, j] = compute_dist((i, j), center, n, l2_norm)
 
     t_neg_np = np.zeros([n, n])
     t_neg_np.fill(-tau)
@@ -102,23 +102,31 @@ class FilterLossBase(torch.autograd.Function):
         (X,) = ctx.saved_tensors
         grad_input = grad_output.clone()
 
-        p_t = alpha / (X.shape[2] * X.shape[2])
+        n = X.shape[2]
+        p_t = alpha / (n * n)
 
         masked = ctx.template * X
 
         p_xt = torch.zeros([X.shape[0], X.shape[1]]).to('cuda')
         trace = torch.zeros([X.shape[0], X.shape[1]]).to('cuda')
+        p_x = torch.zeros([X.shape[0], X.shape[1]]).to('cuda')
+
         for i, d_0 in enumerate(X):
             for j, d_1 in enumerate(d_0):
                 trace[i][j] = torch.trace(masked[i][j])
                 p_xt[i][j] = torch.exp(trace[i][j])
 
         zt = p_xt.sum()
+        p_x = (p_t * torch.mean(trace / zt)).sum()
+
         for i, d_0 in enumerate(X):
             for j, d_1 in enumerate(d_0):
                 t = ctx.template[i][j]
-                y = trace[i][j] - torch.log(p_xt[i][j])
-                dl_x = p_t * p_xt[i][j] * t * y / zt
+                e_tr = p_xt[i][j]
+                y = trace[i][j] - torch.log(zt) - p_x
+
+                # Finally assembling equation 4 -- zhang et al.
+                dl_x = p_t * e_tr * t * y / zt
                 grad_input[i][j] += dl_x
 
         return grad_input
