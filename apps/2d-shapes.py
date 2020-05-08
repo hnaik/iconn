@@ -98,33 +98,12 @@ class DataSplitter:
     def __init__(
         self, input_dir, test_size, batch_size, shuffle, x_labels, y_label
     ):
-        metadata = self.__load_metadata(input_dir)
-        label_paths = metadata['label_paths']
-        self.__labels = label_paths.keys()
-
-        X = []
-        y = []
-        for key, values in label_paths.items():
-            for value in values:
-                X.append(input_dir / value)
-                y.append(key)
-
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, shuffle=shuffle
-        )
-
-        self.train_size = len(y_train)
-        self.test_size = len(y_test)
-
-        self.train_loader = DataLoader(
-            Image64Dataset(X_train, y_train),
-            batch_size=batch_size,
-            shuffle=True,
-        )
-        self.test_loader = DataLoader(
-            Image64Dataset(X_test, y_test), batch_size=1
-        )
         self.batch_size = batch_size
+        self.__labels = set()
+        self.train_loader, self.train_size = self.load_dataset(
+            input_dir, 'train', batch_size=batch_size, shuffle=True
+        )
+        self.test_loader, self.test_size = self.load_dataset(input_dir, 'test')
 
     @property
     def num_classes(self):
@@ -133,6 +112,26 @@ class DataSplitter:
     def __load_metadata(self, input_dir):
         with open(input_dir / 'metadata.json') as f:
             return json.load(f)
+
+    def load_dataset(self, input_dir, dataset_id, batch_size=1, shuffle=False):
+        dataset_dir = input_dir / dataset_id
+        md = self.__load_metadata(dataset_dir)
+        label_paths = md['label_paths']
+        labels = label_paths.keys()
+
+        X = []
+        y = []
+        for key, values in label_paths.items():
+            for value in values:
+                X.append(dataset_dir / value)
+                y.append(key)
+                self.__labels.add(key)
+
+        loader = DataLoader(
+            Image64Dataset(X, y), batch_size=batch_size, shuffle=shuffle
+        )
+
+        return loader, len(y)
 
 
 def initialize_model(
@@ -200,14 +199,22 @@ def train_epoch(params, epoch, device):
     for i, (data, label) in enumerate(params.splitter.train_loader):
         params.net.zero_grad()
 
+        # logger.info(f'copying to device {device}')
+
         data = data.to(device)
         label = label.to(device)
 
+        # logger.info(f'forward')
         output = params.net(data)
+
+        # logger.info('loss')
         loss = params.criterion(output, label)
 
         params.optimizer.zero_grad()
+
+        # logger.info('backward')
         loss.backward()
+
         params.optimizer.step()
 
         idx = i + 1
@@ -222,9 +229,10 @@ def train_epoch(params, epoch, device):
                 + f'avg. time per item {duration / processed} '
                 + f'avg. time per iteration {duration / idx}'
             )
+        # logger.info(f'finished iteration {i + 1}')
 
-            # Don't update, since we want to count since the beginning
-            # begin = now
+        # Don't update, since we want to count since the beginning
+        # begin = now
 
 
 @ic_utils.timed_routine
@@ -232,6 +240,7 @@ def train(params, epochs, device, output_dir):
     params.net = params.net
 
     for epoch in range(epochs):
+        logger.info(f'starting epoch {epoch + 1}')
         begin = datetime.now()
         train_epoch(params, epoch, device)
         duration = datetime.now() - begin
@@ -387,6 +396,7 @@ if __name__ == '__main__':
         '--cache-dir', type=int, help='Directory to write temporary files'
     )
     parser.add_argument('--pretrained-model-path', type=Path)
+    parser.add_argument('--template-cache-dir', type=Path, required=True)
 
     args = parser.parse_args()
 
