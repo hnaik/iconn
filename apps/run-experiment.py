@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
 
-"""
-iconn: Interpretable Convolutional Neural Networks
-Copyright (C) 2020 Harish Naik <harishgnaik@gmail.com>
+# iconn: Interpretable Convolutional Neural Networks
+# Copyright (C) 2020 Harish G. Naik <hnaik2@uic.edu>
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-"""
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 
 import logging
 import numpy as np
@@ -117,9 +116,9 @@ def train_model(model_name):
                     transforms.Resize(256),
                     transforms.CenterCrop(224),
                     transforms.ToTensor(),
-                    normalize
+                    normalize,
                 ]
-            )
+            ),
         )
     )
 
@@ -130,7 +129,7 @@ def train_model(model_name):
         model.parameters(),
         args.learning_rate,
         momentum=args.momentum,
-        weight_decay=args.weight_decay
+        weight_decay=args.weight_decay,
     )
 
     logger.debug('Starting training')
@@ -147,12 +146,15 @@ def train_model(model_name):
         correct, total, y_true, y_pred = validate(loader_val, model, criterion)
         print_accuracy(epoch_idx, correct, total, y_true, y_pred)
 
-        save_checkpoint({
-            'epoch': epoch_idx,
-            'arch': args.arch,
-            'state_dict': model.state_dict(),
-            'optimizer': optimizer.state_dict()
-        }, filename=checkpoint_file)
+        save_checkpoint(
+            {
+                'epoch': epoch_idx,
+                'arch': args.arch,
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+            },
+            filename=checkpoint_file,
+        )
 
 
 def print_accuracy(epoch, correct, total, y, y_preds):
@@ -164,8 +166,8 @@ def print_accuracy(epoch, correct, total, y, y_preds):
     f_score = f.mean() * 100
 
     logger.info(
-        f'[Epoch:{epoch:4d}] Accuracy={accuracy}, Precision={precision}, ' +
-        f'Recall={recall}, F-Score={f_score}'
+        f'[Epoch:{epoch:4d}] Accuracy={accuracy}, Precision={precision}, '
+        + f'Recall={recall}, F-Score={f_score}'
     )
 
 
@@ -188,12 +190,11 @@ def train(loader, model, criterion, optimizer, epoch):
 
             if (i + 1) % args.log_frequency == 0:
                 logger.info(
-                    f'Finished training {(i + 1) * args.batch_size} ' + f'images'
+                    f'Finished training {(i + 1) * args.batch_size} '
+                    + f'images'
                 )
 
                 # return
-
-
 
 
 def validate(loader, model, criterion):
@@ -218,7 +219,7 @@ def validate(loader, model, criterion):
                 y_true_list.append(target.to('cpu'))
                 y_pred_list.append(y_pred.to('cpu'))
 
-                correct += (1 if y_pred_list[-1] == y_true_list[-1] else 0)
+                correct += 1 if y_pred_list[-1] == y_true_list[-1] else 0
                 # break
             except OSError as err:
                 logger.error(f'{err}')
@@ -251,7 +252,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=1e-4)
     parser.add_argument('--output-dir', type=Path, required=True)
     parser.add_argument('--log-frequency', type=int, default=100)
-    parser.add_argument('-m','--momentum', type=float, default=0.9)
+    parser.add_argument('-m', '--momentum', type=float, default=0.9)
 
     args = parser.parse_args()
 
