@@ -19,5 +19,12 @@ $ pipenv shell
 
 ### Run code
 ```
-$ python apps/iconn.py
+$ PYTHONPATH=. apps/2d-shapes.py \
+    --arch interpretable \
+    --device cuda \
+    --input-dir </path/to/data-dir> \
+    --output-dir </path/to/output-dir> \
+    --epochs 1 \
+    --template-norm [original|l1|l2] \
+    --template-cache-dir </path/to/cache-dir>
 ```
