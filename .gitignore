@@ -6,3 +6,4 @@ logs.log
 .idea
 *.pth.tar
 *.csv
+core.*
