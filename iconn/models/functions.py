@@ -4,6 +4,7 @@ import numpy as np
 import torch
 
 from datetime import datetime
+from pathlib import Path
 
 from iconn import utils as ic_utils
 
@@ -17,6 +18,10 @@ n2 = 21
 tau = 0.3
 alpha = 0.001
 beta = 0.1
+
+# FIXME: make this a parameter
+cache_dir = Path('/tmp/cache/templates')
+cache_dir.mkdir(parents=True, exist_ok=True)
 
 
 def l1_norm(x1, x2):
@@ -33,6 +38,15 @@ def compute_dist(pos, center, n, func):
 
 
 def make_templates(n):
+    cache_file_path = cache_dir / f'{n}.pt'
+
+    if cache_file_path.exists():
+        logger.info(f'Loading templates from file {cache_file_path}')
+        templates = torch.load(cache_file_path)
+        return templates['t_l1'], templates['t_l2'], templates['t_neg']
+
+    logger.info(f'No template file found in cache, creating ...')
+
     template_count = n * n
     t_l1 = [torch.zeros([n, n]).to('cuda')] * template_count
     t_l2 = [torch.zeros([n, n]).to('cuda')] * template_count
@@ -51,6 +65,9 @@ def make_templates(n):
     t_neg = torch.from_numpy(t_neg_np)
 
     logger.info('Finished making templates')
+
+    save_templates = {'t_l1': t_l1, 't_l2': t_l2, 't_neg': t_neg}
+    torch.save(save_templates, cache_file_path)
 
     return t_l1, t_l2, t_neg
 
