@@ -73,12 +73,12 @@ def plot_layers(layers, output_dir):
 
 class Image64Dataset(Dataset):
     def __init__(self, X, y):
-        # self.__df = df
         self.__X = X
         self.__y = y
         self.__n = len(X)
 
         unique_labels = np.unique(self.__y)
+        self._num_classes = len(unique_labels)
         label_encoder = preprocessing.LabelEncoder()
         targets = label_encoder.fit_transform(unique_labels)
         self.targets = torch.as_tensor(targets)
@@ -87,9 +87,6 @@ class Image64Dataset(Dataset):
             label: idx for idx, label in enumerate(unique_labels)
         }
 
-        # self.transform = transforms.Compose(
-        #     [transforms.Grayscale(), transforms.ToTensor()]
-        # )
         self.transform = transforms.Compose([transforms.ToTensor()])
 
     def __len__(self):
@@ -101,9 +98,9 @@ class Image64Dataset(Dataset):
             image = Image.open(image_path)
             y = self.__y[idx]
             image = self.transform(image)
-            y_ = torch.zeros(4)
-            y_[self.targets[self.label_dict[y]]] = 1.0
-            return image, y_
+            y_true = torch.zeros(self._num_classes)
+            y_true[self.targets[self.label_dict[y]]] = 1.0
+            return image, y_true
         except KeyError as err:
             logger.info(
                 f'ERROR {err} index={idx} ({err}), shape={self.__X.shape}'
@@ -116,10 +113,16 @@ class DataSplitter:
     ):
         self.batch_size = batch_size
         self.__labels = set()
+
         self.train_loader, self.train_size = self.load_dataset(
             input_dir, 'train', batch_size=batch_size, shuffle=True
         )
-        self.test_loader, self.test_size = self.load_dataset(input_dir, 'test')
+        self.val_loader, self.val_size = self.load_dataset(
+            input_dir, 'val', batch_size=1, shuffle=False
+        )
+        self.test_loader, self.test_size = self.load_dataset(
+            input_dir, 'test', batch_size=1, shuffle=False
+        )
 
     @property
     def num_classes(self):
@@ -215,22 +218,13 @@ def train_epoch(params, epoch, device):
     for i, (data, label) in enumerate(params.splitter.train_loader):
         params.net.zero_grad()
 
-        # logger.info(f'copying to device {device}')
-
         data = data.to(device)
         label = label.to(device)
 
-        # logger.info(f'forward')
         output = params.net(data)
-
-        # logger.info('loss')
         loss = params.criterion(output, label)
-
         params.optimizer.zero_grad()
-
-        # logger.info('backward')
         loss.backward()
-
         params.optimizer.step()
 
         idx = i + 1
@@ -245,10 +239,6 @@ def train_epoch(params, epoch, device):
                 + f'avg. time per item {duration / processed} '
                 + f'avg. time per iteration {duration / idx}'
             )
-        # logger.info(f'finished iteration {i + 1}')
-
-        # Don't update, since we want to count since the beginning
-        # begin = now
 
 
 @ic_utils.timed_routine
@@ -270,10 +260,9 @@ def train(params, epochs, device, output_dir):
     }
     saved_model_dir = output_dir / 'models'
     saved_model_dir.mkdir(parents=True, exist_ok=True)
-    model_file_path = saved_model_dir / 'models.pt'
+    model_file_path = saved_model_dir / f'{args.template_norm}-models.pt'
+    logger.info(f'saving model to {model_file_path}')
     torch.save(model_to_save, model_file_path)
-
-    # torch.save(params.net.state_dict(), str(output_dir / 'models.pt'))
 
 
 @ic_utils.timed_routine
@@ -412,7 +401,7 @@ if __name__ == '__main__':
         '--cache-dir', type=int, help='Directory to write temporary files'
     )
     parser.add_argument('--pretrained-model-path', type=Path)
-    parser.add_argument('--template-cache-dir', type=Path, required=True)
+    # parser.add_argument('--template-cache-dir', type=Path, required=True)
 
     args = parser.parse_args()
 
