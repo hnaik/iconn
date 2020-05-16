@@ -121,7 +121,11 @@ class DataSplitter:
             input_dir, 'val', batch_size=1, shuffle=False
         )
         self.test_loader, self.test_size = self.load_dataset(
-            input_dir, 'test', batch_size=1, shuffle=False
+            input_dir,
+            'test',
+            batch_size=1,
+            shuffle=False,
+            round_robin_labels=True,
         )
 
     @property
@@ -132,12 +136,31 @@ class DataSplitter:
         with open(input_dir / 'metadata.json') as f:
             return json.load(f)
 
-    def load_dataset(self, input_dir, dataset_id, batch_size=1, shuffle=False):
+    def load_dataset(
+        self,
+        input_dir,
+        dataset_id,
+        batch_size=1,
+        shuffle=False,
+        round_robin_labels=False,
+    ):
         dataset_dir = input_dir / dataset_id
         md = self.__load_metadata(dataset_dir)
         label_paths = md['label_paths']
         labels = label_paths.keys()
+        X, y = (
+            self._load_dataset(label_paths, dataset_dir)
+            if not round_robin_labels
+            else self._load_dataset_rr(label_paths, dataset_dir)
+        )
+        loader = DataLoader(
+            Image64Dataset(X, y), batch_size=batch_size, shuffle=shuffle
+        )
 
+        return loader, len(y)
+
+    def _load_dataset(self, label_paths, dataset_dir):
+        logger.info(f'building regular dataset from {dataset_dir}')
         X = []
         y = []
         for key, values in label_paths.items():
@@ -145,12 +168,42 @@ class DataSplitter:
                 X.append(dataset_dir / value)
                 y.append(key)
                 self.__labels.add(key)
+        return X, y
 
-        loader = DataLoader(
-            Image64Dataset(X, y), batch_size=batch_size, shuffle=shuffle
-        )
+    def _load_dataset_rr(self, label_paths, dataset_dir):
+        """Load data in a round-robin ordering of the labels
 
-        return loader, len(y)
+        Go through the dataset in a round-robin fashion and load the data
+        """
+
+        logger.info(f'building round-robin dataset from {dataset_dir}')
+
+        labels = label_paths.keys()
+        idx = {}
+        max_counts = {}
+
+        for key, values in label_paths.items():
+            max_counts.update({key: len(values)})
+            idx.update({key: 0})
+
+        def all_loaded():
+            for label in labels:
+                if idx[label] < max_counts[label]:
+                    return False
+            return True
+
+        X = []
+        y = []
+        while not all_loaded():
+            for label in labels:
+                if idx[label] >= max_counts[label]:
+                    continue
+                current_label_idx = idx[label]
+                next_item = label_paths[label][current_label_idx]
+                X.append(dataset_dir / next_item)
+                y.append(label)
+                idx[label] += 1
+        return X, y
 
 
 def initialize_model(
