@@ -16,6 +16,7 @@ sklearn = "*"
 torch = "*"
 torchvision = "*"
 opencv-python = "*"
+tensorboard = "*"
 
 [requires]
 python_version = "3.8"
