@@ -7,3 +7,5 @@ logs.log
 *.pth.tar
 *.csv
 core.*
+*.diff
+Pipfile.lock
